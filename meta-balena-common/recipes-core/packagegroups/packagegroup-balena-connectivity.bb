@@ -18,6 +18,7 @@ CONNECTIVITY_FIRMWARES ?= " \
     linux-firmware-rtl8192su \
     linux-firmware-rtl8723 \
     linux-firmware-rtl8723b-bt \
+    linux-firmware-rtl8761bu-bt \
     "
 
 CONNECTIVITY_PACKAGES = " \

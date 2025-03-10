@@ -35,6 +35,13 @@ FILES:${PN}-rtl8723b-bt = " \
     ${nonarch_base_libdir}/firmware/rtl_bt/rtl8723b_fw.bin* \
 "
 
+PACKAGES =+ "${PN}-rtl8761bu-bt"
+
+FILES:${PN}-rtl8761bu-bt = " \
+    ${nonarch_base_libdir}/firmware/rtl_bt/rtl8761bu_fw.bin \
+    ${nonarch_base_libdir}/firmware/rtl_bt/rtl8761bu_config.bin \
+"
+
 PACKAGES =+ "${PN}-iwlwifi-3168"
 
 FILES:${PN}-iwlwifi-3168 = " \

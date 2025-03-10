@@ -8,6 +8,7 @@ SRC_URI = " \
 	file://00-teensy.rules \
 	file://79-wlan-power.rules \
 	file://99-misc.rules \
+	file://40-brovi.rules \
 	"
 
 do_install:append() {
@@ -19,4 +20,7 @@ do_install:append() {
 
 	# Install wlan rules file
 	install -D -m 0644 ${WORKDIR}/79-wlan-power.rules ${D}/lib/udev/rules.d/79-wlan-power.rules
+
+	# Install brovi rules file
+	install -D -m 0644 ${WORKDIR}/40-brovi.rules ${D}/lib/udev/rules.d/40-brovi.rules
 }

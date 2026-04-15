@@ -23,6 +23,12 @@ const PING_ATTEMPTS = 3;
 module.exports = {
     title: 'Cellular tests',
     run: async function (test) {
+
+        if (this.suite.deviceType.slug == 'kontron-come-xelx' || this.suite.deviceType.slug == 'jetson-orin-nx-es') {
+            test.comment(`Skipping modem test on ${this.suite.deviceType.slug}`);
+            return;
+        }
+
         test.comment('starting modem tests...');
 
         async function getConfig() {
@@ -105,6 +111,23 @@ module.exports = {
                             return true;
                         }
                     });
+
+                    // Check for SIM - and skip the remainder of the test if not present
+                    // Contains the following if there is a missing sim:
+                    /*
+                      Status   |           state: failed
+                               |           failed reason: sim-missing
+                               |           power state: on
+                    */
+                    const checkSim = await this.worker.executeCommandInHostOS(
+                        `mmcli --modem=${targetAddress}`,
+                        this.link,
+                    );
+                    console.log(checkSim)
+                    if (checkSim.includes('sim-missing')){
+                        test.comment(`No SIM card detected in modem ${targetAddress} - skipping test`)
+                        return true
+                    }
 
                     // enable modem
                     await this.worker.executeCommandInHostOS(

@@ -5,8 +5,22 @@ include conf/distro/include/balena-os-rust-version.inc
 
 DISTRO = "balena-os"
 DISTRO_NAME = "balenaOS"
-DISTRO_VERSION = "6.4.2"
+DISTRO_VERSION = "6.12.8"
 HOSTOS_VERSION = "${DISTRO_VERSION}"
+
+# Allowed kernel cmdline arguments, used by balena-bootloader and the bootloader configuration scripts
+ALLOWED_BOOTARGS_LIST=" \
+    firmware_class.path=/var/lib/docker/volumes/extra-firmware/_data \
+"
+
+# Provides a bash array from the above allowed boot args list
+def format_bootargs_array(d):
+    args_list = d.getVar('ALLOWED_BOOTARGS_LIST', False, False).split()
+    quoted_args = [f'\\"{arg}\\"' for arg in args_list]
+    joined_args = ' '.join(quoted_args)
+    bash_array_str = '(' + joined_args + ')'
+    return bash_array_str
+
 python () {
     ''' Set HOSTOS_VERSION from board VERSION if available '''
 
@@ -92,9 +106,10 @@ INITRAMFS_IMAGE = "balena-image-initramfs"
 INITRAMFS_IMAGE_BUNDLE = "1"
 KERNEL_INITRAMFS = "-initramfs"
 INITRAMFS_TASK = ""
+IMAGE_NAME_SUFFIX = ""
 
 # resinOS defaults to ipk packages
-PACKAGE_CLASSES ?= "package_ipk"
+PACKAGE_CLASSES = "package_ipk"
 
 # Default the docker storage driver to aufs
 BALENA_STORAGE = "overlay2"
@@ -119,15 +134,15 @@ BAD_RECOMMENDATIONS += "shared-mime-info"
 PREFERRED_VERSION_upx:arm = "3.94"
 PREFERRED_VERSION_upx-native:arm = "3.94"
 
-# let's pin linux-firmware to the version we imported from Poky kirkstone release
-PREFERRED_VERSION_linux-firmware = "20230404"
+# let's pin linux-firmware to the version we imported from Poky scarthgap release
+PREFERRED_VERSION_linux-firmware = "20240909"
 
-# balena-engine go version requirement
-GOVERSION = "1.17.13"
-PREFERRED_PROVIDER_go-native = "go-native"
+# Scarthgap go version, meets balena-engine go version requirement
+GOVERSION = "1.22.12"
+PREFERRED_PROVIDER_go-native = "go-binary-native"
 
 # Firmware compression support
-FIRMWARE_COMPRESSION ?= "0"
+FIRMWARE_COMPRESSION ?= "1"
 
 SIGN_API ?= ""
 # Signing keys

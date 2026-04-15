@@ -38,8 +38,7 @@ const supportsBootConfig = (deviceType) => {
 const flasherConfig = (deviceType) => {
 	return (
 		[
-			'imx8mmebcrs08a2',
-			'imx8mm-var-dart-plt',
+			'imx8mm-var-dart-plt'
 		].includes(deviceType)
 	);
 }
@@ -365,7 +364,7 @@ module.exports = {
 		await this.context
 		.get()
 		.sdk.balena.auth.loginWithToken(this.suite.options.balena.apiKey);
-		this.log(`Logged in with ${await this.context.get().sdk.balena.auth.whoami()}'s account on ${this.suite.options.balena.apiUrl} using balenaSDK`);
+		this.log(`Logged in with ${await (this.context.get().sdk.balena.auth.whoami()).username}'s account on ${this.suite.options.balena.apiUrl} using balenaSDK`);
 
 
 		// Downloads the balenaOS image we hup from		
@@ -379,9 +378,12 @@ module.exports = {
 			return
 		}
 
+		console.log('OS download options:')
+		console.log(this.suite.options.balenaOS.download)
 		let path = await this.sdk.fetchOS(
 			this.suite.options.balenaOS.download.version,
 			this.suite.deviceType.slug,
+			this.suite.options.balenaOS.download.imageType
 		);
 
 		const keys = await this.utils.createSSHKey(this.sshKeyPath);
@@ -421,13 +423,14 @@ module.exports = {
 						developmentMode: true,
 						installer: {
 							secureboot: ['1', 'true'].includes(process.env.FLASHER_SECUREBOOT),
-							migrate: { force: this.suite.options.balenaOS.config.installerForceMigration }
+							migrate: { force: this.suite.options.balenaOS.config.installerForceMigration },
+							whitelist_pcr2: true
 						},
 					},
 				},
 				this.getLogger(),
 			),
-			hupOs: new BalenaOS({}, this.getLogger()),
+			hupOs: new BalenaOS({deviceType: this.suite.deviceType.slug}, this.getLogger()),
 		});
 		this.suite.teardown.register(() => {
 			this.log('Worker teardown');

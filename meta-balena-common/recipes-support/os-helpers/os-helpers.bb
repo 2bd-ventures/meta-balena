@@ -4,7 +4,7 @@ LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://${BALENA_COREBASE}/COPYING.Apache-2.0;md5=89aea4e17d99a7cacdbeed46a0096b10"
 
 DEPENDS = "time-native curl-native"
-RDEPENDS:${PN}-fs = "e2fsprogs-tune2fs mtools parted bash util-linux-fdisk"
+RDEPENDS:${PN}-fs = "e2fsprogs-tune2fs mtools parted bash util-linux-fdisk zstd"
 RDEPENDS:${PN}-fs:append = "${@bb.utils.contains('MACHINE_FEATURES','raid',' mdadm','',d)}"
 RDEPENDS:${PN}-tpm2 = "libtss2-tcti-device tpm2-tools tcgtool"
 RDEPENDS:${PN}-config = "bash"
@@ -20,6 +20,7 @@ SRC_URI = " \
     file://os-helpers-time \
     file://os-helpers-tpm2 \
     file://os-helpers-config \
+    file://os-helpers-bootloader-config \
     file://os-helpers-api \
     file://os-helpers-efi \
     file://os-helpers-sb \
@@ -49,6 +50,7 @@ do_install() {
         ${WORKDIR}/os-helpers-time \
         ${WORKDIR}/os-helpers-tpm2 \
         ${WORKDIR}/os-helpers-config \
+        ${WORKDIR}/os-helpers-bootloader-config \
         ${WORKDIR}/os-helpers-api \
         ${WORKDIR}/os-helpers-efi \
         ${WORKDIR}/os-helpers-sb \
@@ -56,13 +58,16 @@ do_install() {
         ${D}${libexecdir}
         sed -i "s,@@BALENA_CONF_UNIT_STORE@@,${BALENA_CONF_UNIT_STORE},g" ${D}${libexecdir}/os-helpers-config
         sed -i -e "s,@@BALENA_FINGERPRINT_FILENAME@@,${BALENA_FINGERPRINT_FILENAME},g" -e "s,@@BALENA_FINGERPRINT_EXT@@,${BALENA_FINGERPRINT_EXT},g" ${D}${libexecdir}/os-helpers-fs
+
+        # ALLOWED_BOOTARGS_ARRAY is provided by conf/distro/include/balena-os.inc
+        sed -i "s|@@ALLOWED_BOOTARGS@@|${@format_bootargs_array(d)}|g" ${D}${libexecdir}/os-helpers-bootloader-config
 }
 
 FILES:${PN}-fs = "${libexecdir}/os-helpers-fs"
 FILES:${PN}-logging = "${libexecdir}/os-helpers-logging"
 FILES:${PN}-time = "${libexecdir}/os-helpers-time"
 FILES:${PN}-tpm2 = "${libexecdir}/os-helpers-tpm2"
-FILES:${PN}-config = "${libexecdir}/os-helpers-config"
+FILES:${PN}-config = "${libexecdir}/os-helpers-config ${libexecdir}/os-helpers-bootloader-config"
 FILES:${PN}-api = "${libexecdir}/os-helpers-api"
 FILES:${PN}-reboot = "${libexecdir}/safe_reboot"
 FILES:${PN}-efi = "${libexecdir}/os-helpers-efi"

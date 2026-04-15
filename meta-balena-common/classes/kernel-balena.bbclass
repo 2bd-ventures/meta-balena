@@ -112,7 +112,6 @@ BALENA_CONFIGS ?= " \
     brcmfmac \
     cdc-acm \
     ralink \
-    rtl8192cu \
     r8188eu \
     systemd \
     leds-gpio \
@@ -153,7 +152,11 @@ BALENA_CONFIGS ?= " \
     ${FIRMWARE_COMPRESS} \
     ${MODULE_COMPRESS} \
     ${WIREGUARD} \
-    "
+    vlan \
+    bpf \
+    disk-watchdog \
+    dmabuf \
+"
 
 #
 # Balena specific kernel configuration
@@ -166,6 +169,8 @@ BALENA_CONFIGS ?= " \
 # CONFIG_NF_NAT_IPV4 was merged with NF_NAT in v5.1 (sha1 3bf195ae6037e310d693ff3313401cfaf1261b71)
 #
 BALENA_CONFIGS_DEPS[balena] ?= " \
+    CONFIG_NETFILTER_XTABLES_LEGACY=y \
+    CONFIG_IP_NF_IPTABLES_LEGACY=y \
     CONFIG_IP_NF_NAT=y \
     CONFIG_IPV6=y \
     CONFIG_IP_NF_IPTABLES=y \
@@ -222,10 +227,15 @@ BALENA_CONFIGS[memcfg_swap] = "CONFIG_MEMCG_SWAP=y"
 FIRMWARE_COMPRESS = "${@configure_from_version("5.3", "firmware_compress", "", d)}"
 BALENA_CONFIGS[firmware_compress] = " \
     CONFIG_FW_LOADER_COMPRESS=y \
+    CONFIG_FW_LOADER_COMPRESS_XZ=y \
 "
+
+BALENA_CONFIGS:append = " ${@configure_from_version("5.6", "", " mptcp", d)}"
+BALENA_CONFIGS[mptcp] = "CONFIG_MPTCP=y"
 
 MODULE_COMPRESS = "${@configure_from_version("5.13", "module_compress", "", d)}"
 BALENA_CONFIGS[module_compress] = " \
+    CONFIG_MODULE_COMPRESS=y \
     CONFIG_MODULE_COMPRESS_ZSTD=y \
 "
 
@@ -238,7 +248,6 @@ KERNEL_ZSTD = "${@configure_from_version("5.9", "kernel_zstd", "", d)}"
 BALENA_CONFIGS:append = "${@bb.utils.contains('MACHINE_FEATURES','efi'," ${KERNEL_ZSTD}",'',d)}"
 BALENA_CONFIGS[kernel_zstd] = " \
     CONFIG_KERNEL_ZSTD=y \
-    CONFIG_CRYPTO_ZSTD=y \
 "
 
 BALENA_CONFIGS[aufs] = " \
@@ -295,23 +304,6 @@ BALENA_CONFIGS[systemd] ?= " \
     CONFIG_CGROUP_SCHED=y \
     CONFIG_FAIR_GROUP_SCHED=y \
     CONFIG_CFS_BANDWIDTH=y"
-
-#
-# We use an out-of-tree kernel module for RTL8192CU WiFi devices
-# Deactivate in-tree driver and add all the dependencies of the out-of-the tree
-# one
-#
-BALENA_CONFIGS[rtl8192cu] ?= "\
-    CONFIG_RTL8192CU=n \
-    CONFIG_HOSTAP=m \
-    CONFIG_WIRELESS=y \
-    CONFIG_USB=y \
-    CONFIG_MAC80211=m \
-    CONFIG_CFG80211=m \
-    CONFIG_CFG80211_WEXT=y \
-    CONFIG_WIRELESS_EXT=y \
-    CONFIG_WEXT_PRIV=y \
-    "
 
 # Activate R8188EU driver
 BALENA_CONFIGS_DEPS[r8188eu] ?= "\
@@ -393,6 +385,7 @@ BALENA_CONFIGS[compress-kmodules] ?= " \
 #
 BALENA_CONFIGS[no-debug-info] ?= " \
     CONFIG_DEBUG_INFO=n \
+    CONFIG_DEBUG_INFO_NONE=y \
     "
 
 #
@@ -552,10 +545,14 @@ BALENA_CONFIGS[zram] = " \
     CONFIG_ZRAM=y \
     CONFIG_CRYPTO=y \
     CONFIG_CRYPTO_LZ4=y \
+    CONFIG_CRYPTO_ZSTD=y \
     "
 
-BALENA_CONFIGS:append = " ${@configure_from_version("6.12", " zram_backend_lz4", "", d)}"
-BALENA_CONFIGS[zram_backend_lz4] = "CONFIG_ZRAM_BACKEND_LZ4=y"
+BALENA_CONFIGS:append = " ${@configure_from_version("6.12", " zram_backends", "", d)}"
+BALENA_CONFIGS[zram_backends] = " \
+    CONFIG_ZRAM_BACKEND_LZ4=y \
+    CONFIG_ZRAM_BACKEND_ZSTD=y \
+"
 
 # Kernel versions between 4.0 and 4.9
 # need this for lz4 support
@@ -726,6 +723,36 @@ BALENA_CONFIGS[efi-secureboot] = " \
 "
 BALENA_CONFIGS:append = "${@bb.utils.contains('MACHINE_FEATURES','efi',' efi-secureboot','',d)}"
 
+BALENA_CONFIGS:append = " ${@configure_from_version("6.11", " memcg", "", d)}"
+BALENA_CONFIGS[memcg] = " \
+    CONFIG_MEMCG_V1=y \
+"
+
+# 802.1q VLANs are supported by NetworkManager on all device types
+BALENA_CONFIGS[vlan] = " \
+    CONFIG_VLAN_8021Q=y \
+"
+
+# enable CGROUP_BPF required by the supervisor
+BALENA_CONFIGS[bpf] = " \
+    CONFIG_CGROUP_BPF=y \
+"
+BALENA_CONFIGS_DEPS[bpf] = " \
+    CONFIG_BPF_SYSCALL=y \
+"
+
+# Used by disk-watchdog tests
+BALENA_CONFIGS[disk-watchdog] = " \
+    CONFIG_BLK_DEV_DM=y \
+"
+
+# Enable DMA-BUF memory heaps
+BALENA_CONFIGS[dmabuf] = " \
+    CONFIG_DMABUF_HEAPS=y \
+    CONFIG_DMABUF_HEAPS_CMA=y \
+    CONFIG_DMABUF_HEAPS_SYSTEM=y \
+"
+
 ###########
 # HELPERS #
 ###########
@@ -843,6 +870,7 @@ def aufs_kernel_select(kernelversion):
         ('6.1','bfd38ec481836d86de5686dadca02e072b4f0584'),
         ('6.6','1b28ab1ec3a89a9bec859f61f36d7a5e895583d5'),
         ('6.6.63','4b3aaa6e3dfad2e26deef81a6abbec02939e1080'),
+        ('6.6.84','31c39fd578065095faa6789c84a54a6a84f4dfc7'),
         ('6.12','a74fc3a112d90acddafa65a254177d4e523d1f0c'),
     ])
 
@@ -925,7 +953,6 @@ addtask test_aufs_kernel_select after do_fetch before do_patch
 python do_kernel_resin_aufs_fetch_and_unpack() {
 
     import os.path
-    from bb.fetch2.git import Git
 
     balena_storage = d.getVar('BALENA_STORAGE', True)
     bb.note("Kernel will be configured for " + balena_storage + " balena storage driver.")
@@ -956,10 +983,9 @@ python do_kernel_resin_aufs_fetch_and_unpack() {
         srcuri = "git://github.com/sfjro/aufs-standalone.git;protocol=https;branch=aufs%s;name=aufs;destsuffix=aufs_standalone" % aufsbranch
 
     d.setVar('SRCREV_aufs', aufscommit)
-    aufsgit = Git()
-    urldata = bb.fetch.FetchData(srcuri, d)
-    aufsgit.download(urldata, d)
-    aufsgit.unpack(urldata, d.getVar('WORKDIR', True), d)
+    urldata = bb.fetch.Fetch([srcuri], d)
+    urldata.download()
+    urldata.unpack(d.getVar('WORKDIR', True))
 }
 
 # add our task to task queue - we need the kernel version (so we need to have the sources unpacked and patched) in order to know what aufs patches version we fetch and unpack
@@ -971,6 +997,10 @@ apply_aufs_patches () {
     # bail out if it looks like the kernel source tree already has the fs/aufs directory
     if [ -d ${S}/fs/aufs ] || ! ${@bb.utils.contains('BALENA_CONFIGS','aufs','true','false',d)}; then
         exit
+    fi
+    # fix for kernels up to 6.10: fs/aufs/Makefile:3: fs/aufs/magic.mk: No such file or directory
+    if [ `git -C ${WORKDIR}/aufs_standalone branch --show-current` = "aufs6.6.63" ]; then
+        sed -i 's|include ${src}/magic.mk|include ${srctree}/${src}/magic.mk|' ${WORKDIR}/aufs_standalone/fs/aufs/Makefile
     fi
     cp -r ${WORKDIR}/aufs_standalone/Documentation ${WORKDIR}/aufs_standalone/fs ${S}
     cp ${WORKDIR}/aufs_standalone/include/uapi/linux/aufs_type.h ${S}/include/uapi/linux/
@@ -1086,7 +1116,7 @@ python do_kernel_resin_checkconfig() {
     resinDefconfigPath = d.getVar("WORKDIR", True) + '/' +  resinDefconfig
     wantedConfigs = getKernelSetConfigs(resinDefconfigPath)
     if wantedConfigs:
-        configured = wantedConfigs.intersection(allSetConfigs)
+        configured = wantedConfigs.intersection(allSetKernelConfigs)
         notconfigured = wantedConfigs.difference(configured)
         for config in notconfigured:
             if not config.endswith('=n'):

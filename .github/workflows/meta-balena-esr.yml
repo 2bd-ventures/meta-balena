@@ -50,7 +50,7 @@ jobs:
           repositories: >
             ["${{ github.event.repository.name }}"]
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           # The default GITHUB_TOKEN does not have workflow scope
           # This is needed to push a new branch with workflow files
@@ -111,7 +111,15 @@ jobs:
           os_esr_branch=${ov_arr[0]}.${ov_arr[1]}.x
           if git ls-remote --exit-code --heads origin "${os_esr_branch}" > /dev/null; then
             echo "Branch ${os_esr_branch} already exists"
-            exit 1
+            echo "Falling back to HEAD of the current minor - i.e current HEAD"
+            os_version="${current_os_version}"
+            IFS="." read -r -a ov_arr <<< "${os_version}"
+            os_esr_branch=${ov_arr[0]}.${ov_arr[1]}.x
+            # Final sanity check to see if the current minor also already exists, unlikely, but better to catch it here
+            if git ls-remote --exit-code --heads origin "${os_esr_branch}" > /dev/null; then
+              echo "Branch ${os_esr_branch} already exists"
+              exit 1
+            fi
           fi
           echo "os_version=${os_version}" >> "$GITHUB_OUTPUT"
           echo "os_esr_branch=${os_esr_branch}" >> "$GITHUB_OUTPUT"
@@ -119,7 +127,7 @@ jobs:
           exit 0
 
       - name: Setup Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: ${{ matrix.python-version }}
 

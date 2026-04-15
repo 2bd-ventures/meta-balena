@@ -3,6 +3,8 @@ LICENSE = "Apache-2.0"
 
 PR = "r1"
 
+PACKAGE_ARCH="${TUNE_PKGARCH}"
+
 inherit packagegroup
 
 BALENA_INIT_PACKAGE ?= "resin-init"
@@ -29,6 +31,8 @@ RDEPENDS:${PN} += " \
     balena-rollback \
     timeinit \
     systemd-zram-swap \
+    os-extra-firmware \
     ${@bb.utils.contains('BALENA_STORAGE', 'aufs', 'aufs-util-auplink', '', d)} \
     ${BALENA_SUPERVISOR} \
+    disk-watchdog \
     "

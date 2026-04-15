@@ -34,18 +34,17 @@ jobs:
     if: (github.event.pull_request.head.repo.full_name == github.repository) == (github.event_name == 'pull_request')
     secrets: inherit
     with:
-      # Needed for testing - defaults to production
-      deploy-environment: balena-staging.com
+      deploy-environment: balena-cloud.com
       machine: genericx86-64-ext
       device-repo: balena-os/balena-intel
       device-repo-ref: master
       # Pin to the current commit
-      meta-balena-ref: ${{ github.sha }}
+      meta-balena-ref: ${{ github.event.pull_request.head.sha }}
       # Use QEMU workers for testing and run cloud suite against balenaCloud production
       test_matrix: >
         {
           "test_suite": ["os","cloud","hup"],
           "environment": ["balena-cloud.com"],
           "worker_type": ["qemu"],
-          "runs_on": [["self-hosted", "X64", "kvm", "yocto"]]
+          "runs_on": [["self-hosted", "X64", "kvm", "qemu-os"]]
         }

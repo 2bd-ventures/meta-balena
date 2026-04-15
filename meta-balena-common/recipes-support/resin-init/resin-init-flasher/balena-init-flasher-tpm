@@ -10,6 +10,11 @@ diskenc_setup() {
         # Include TPM2 helpers
         . /usr/libexec/os-helpers-tpm2
 
+        # Bail out if the IOMMU is disabled
+        if pcr7_has_dma_disabled_event; then
+            fail "Won't set up disk encryption with IOMMU disabled"
+        fi
+
         # Generate password and encrypt it using the TPM
         TPM="${TPM:-/dev/tpmrm0}"
         if [ -e "$TPM" ]; then
@@ -23,6 +28,11 @@ diskenc_setup() {
         PASSPHRASE_SZ=32
         PASSPHRASE_FILE="$(mktemp)"
         hw_gen_passphrase "$PASSPHRASE_SZ" > "$PASSPHRASE_FILE"
+
+        USE_PCR2="ignore_pcr2"
+        if [ "$(jq .installer.whitelist_pcr2 "${CONFIG_PATH}")" = "true" ]; then
+            USE_PCR2="use_pcr2"
+        fi
 
         # Create two policies to ensure the newly flashed system boots. One with
         # the EFI binaries measured into PCR7 as specified in the TCG spec, one
@@ -43,10 +53,12 @@ diskenc_setup() {
         PCRS="0,2,3,7"
 	generate_pcr_digests \
 		"${PCRS}" \
-		"${PCR_VAL_BIN_PRIMARY}"
+		"${PCR_VAL_BIN_PRIMARY}" \
+		"${USE_PCR2}"
 	generate_pcr_digests \
 		"${PCRS}" \
 		"${PCR_VAL_BIN_SECONDARY}" \
+		"${USE_PCR2}" \
 		"${EFI_BINARIES}"
 
 	info "Creating combined policy for PCRs ${PCRS}"

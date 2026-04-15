@@ -1,4 +1,4 @@
-inherit deploy meson
+inherit deploy
 
 FILESEXTRAPATHS:append := ":${THISDIR}/balena-files:${THISDIR}/${BPN}"
 
@@ -14,6 +14,15 @@ SRC_URI:append = " \
     file://remove-https-warning.patch \
     "
 
+# We don't ship/need these files
+SRC_URI:remove = " \
+    file://enable-dhcpcd.conf \
+    file://enable-iwd.conf \
+"
+
+# Necessary after upstream moved SRC_URI from tarballs to git
+S = "${WORKDIR}/git"
+
 NETWORKMANAGER_FIREWALL_DEFAULT = "iptables"
 
 NETWORKMANAGER_DNS_RC_MANAGER_DEFAULT = "resolvconf"
@@ -26,6 +35,12 @@ RDEPENDS:${PN}:append = " \
     resolvconf \
     os-helpers-logging \
     "
+
+# We don't ship/need libnvme
+DEPENDS:remove = " \
+    libnvme \
+"
+
 FILES:${PN}:append = " ${sysconfdir}/*"
 
 EXTRA_OEMESON += " \
@@ -48,6 +63,10 @@ EXTRA_OEMESON += " \
     -Dintrospection=false \
     -Dfirewalld_zone=false \
     "
+
+# disable init script as we use systemd
+INITSCRIPT_PACKAGES = ""
+INITSCRIPT_NAME:${PN}-daemon = ""
 
 do_install:append() {
     install -d ${D}${sysconfdir}/tmpfiles.d

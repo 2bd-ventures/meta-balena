@@ -9,9 +9,8 @@ LIC_FILES_CHKSUM = "file://copyright;md5=37e0ae856bc7cedaaaca1d4a681b62b0"
 SRC_URI = " \
 	git://github.com/donapieppo/libnss-ato;branch=master;protocol=https \
 	file://0001-libnss_ato.c-Enable-use-for-root-user.patch \
-	file://libnss-ato.conf \
 "
-SRCREV = "4b4a77bd56113fdb6bff63bd851250b6ec029446"
+SRCREV = "7f33780a09b3a6a256ff77601adaed28d9bb117a"
 S = "${WORKDIR}/git"
 
 do_compile() {
@@ -19,13 +18,13 @@ do_compile() {
 }
 
 do_install() {
-	mkdir -p ${D}${base_libdir}
+	mkdir -p ${D}${libdir}
 	mkdir -p ${D}${mandir}/man3
-	oe_runmake 'prefix=${D}' install
+	oe_runmake 'prefix=${D}${prefix}' install
 
 	mkdir -p ${D}${sysconfdir}
-	install -m 0644 ${WORKDIR}/libnss-ato.conf ${D}${sysconfdir}
+	echo "root:x:0:0:root:${ROOT_HOME}:/bin/sh" > ${D}${sysconfdir}/libnss-ato.conf
 }
 
-FILES:${PN} += "${base_libdir}/*.so"
 FILES:${PN}-dev = ""
+FILES:${PN} += "${nonarch_libdir}/*.so"

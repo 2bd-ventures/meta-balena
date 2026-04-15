@@ -15,10 +15,10 @@ inherit goarch
 inherit pkgconfig
 inherit useradd
 
-BALENA_VERSION = "v20.10.43"
-BALENA_BRANCH = "master"
+BALENA_VERSION = "v20.10.27"
+BALENA_BRANCH = "release/v20.10"
 
-SRCREV = "0be8046a1c191ad789a65d7d8429d899d6bc9fbe"
+SRCREV = "f4c93ad2b3c4ffa190ad29abba0a6f3e0779c797"
 # NOTE: update patches when bumping major versions
 # [0] will have up-to-date versions, make sure poky version matches what
 # meta-balena uses
@@ -36,6 +36,19 @@ SRC_URI = "\
 	file://0001-dynbinary-use-go-cross-compiler.patch \
 	"
 S = "${WORKDIR}/git"
+
+CVE_PRODUCT = "balena:balena-engine mobyproject:moby"
+
+CVE_STATUS[CVE-2024-21626] = "backported-patch: runc has been updated to a non-vulnerable version"
+CVE_STATUS[CVE-2023-28840] = "not-applicable-config: Swarm Mode is not part of balena-engine"
+CVE_STATUS[CVE-2023-28841] = "not-applicable-config: Swarm Mode is not part of balena-engine"
+CVE_STATUS[CVE-2023-28842] = "not-applicable-config: Swarm Mode is not part of balena-engine"
+CVE_STATUS[CVE-2024-23650] = "not-applicable-config: Buildkit is not part of balena-engine"
+CVE_STATUS[CVE-2024-23651] = "not-applicable-config: Buildkit is not part of balena-engine"
+CVE_STATUS[CVE-2024-23652] = "not-applicable-config: Buildkit is not part of balena-engine"
+CVE_STATUS[CVE-2024-23653] = "not-applicable-config: Buildkit is not part of balena-engine"
+CVE_STATUS[CVE-2024-32473] = "not-applicable-config: balena-engine doesn't support ipvlan or macvlan"
+CVE_STATUS[CVE-2024-41110] = "not-applicable-config: balena-engine doesn't use an AuthZ plugin"
 
 PV = "${@d.getVar('BALENA_VERSION').replace('v', '')}+git${SRCREV}"
 
@@ -59,13 +72,13 @@ DEPENDS:append:class-native = " go-native"
 INSANE_SKIP:${PN} += "already-stripped"
 
 FILES:${PN} += " \
-	/lib/systemd/system/* \
-	/home/root \
+	${systemd_unitdir}/system/* \
+	${ROOT_HOME} \
 	${localstatedir} \
 	"
 
 DOCKER_PKG="github.com/docker/docker"
-BUILD_TAGS="no_btrfs no_cri no_devmapper no_zfs exclude_disk_quota exclude_graphdriver_btrfs exclude_graphdriver_devicemapper exclude_graphdriver_zfs"
+BUILD_TAGS="no_btrfs no_cri no_devmapper no_zfs exclude_disk_quota exclude_graphdriver_btrfs exclude_graphdriver_devicemapper exclude_graphdriver_zfs no_buildkit"
 
 do_configure[noexec] = "1"
 
@@ -97,6 +110,7 @@ do_compile() {
 }
 
 do_install() {
+	root_bindmount_name=$(echo "${ROOT_HOME}" | sed 's|/|-|g')
 	mkdir -p ${D}/${bindir}
 	install -m 0755 ${S}/src/import/bundles/dynbinary-daemon/balena-engine ${D}/${bindir}/balena-engine
 
@@ -118,6 +132,8 @@ do_install() {
 	install -m 0644 ${S}/src/import/contrib/init/systemd/balena-engine.socket ${D}/${systemd_unitdir}/system
 
 	install -m 0644 ${WORKDIR}/balena.service ${D}/${systemd_unitdir}/system
+
+	sed -i -e "s,@ROOT_HOME@,${root_bindmount_name},g" ${D}/${systemd_unitdir}/system/balena.service
 	install -m 0644 ${WORKDIR}/balena-host.service ${D}/${systemd_unitdir}/system
 	install -m 0644 ${WORKDIR}/balena-host.socket ${D}/${systemd_unitdir}/system
 
@@ -129,9 +145,9 @@ do_install() {
 	install -d ${D}${sysconfdir}/systemd/system/balena.service.d
 	install -c -m 0644 ${WORKDIR}/balena.conf.storagemigration ${D}${sysconfdir}/systemd/system/balena.service.d/storagemigration.conf
 
-	install -d ${D}/home/root/.docker
-	ln -sf .docker ${D}/home/root/.balena
-	ln -sf .docker ${D}/home/root/.balena-engine
+	install -d ${D}/${ROOT_HOME}/.docker
+	ln -sf .docker ${D}/${ROOT_HOME}/.balena
+	ln -sf .docker ${D}/${ROOT_HOME}/.balena-engine
 
 	install -d ${D}${localstatedir}/lib/docker
 	ln -sf docker ${D}${localstatedir}/lib/balena

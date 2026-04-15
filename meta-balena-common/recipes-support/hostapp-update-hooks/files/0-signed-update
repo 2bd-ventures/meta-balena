@@ -41,11 +41,33 @@ umountEfiVars() {
     fi
 }
 
-updateKeys() {
+isRollbackHealth() {
+    # We're running in a container or a chroot, systemctl is-active won't work
+    # We have to use the underlying d-bus call to check if the rollback-health
+    # service is active
+    STATUS=$(dbus-send \
+        --system \
+        --print-reply \
+        --dest=org.freedesktop.systemd1 \
+        /org/freedesktop/systemd1/unit/rollback_2dhealth_2eservice \
+        org.freedesktop.DBus.Properties.Get \
+        string:"org.freedesktop.systemd1.Unit" \
+        string:"ActiveState" \
+    | awk -F'"' '/string/ {print $2}')
+
+    if [ "${STATUS}" = "active" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
+updatePCRPolicy() {
     SESSION_CTX=$(mktemp -t)
     EFI_MOUNT_DIR="/mnt/efi"
     PASSPHRASE_FILE="$(mktemp -t)"
     CURRENT_POLICY_PATH="$(find /mnt/efi -name "policies.*")"
+    DISK_ENC_DIR=""
     for UNLOCK_PCRS in  0,2,3,7 0,1,2,3; do
         tpm2_startauthsession --policy-session -S "${SESSION_CTX}"
         tpm2_policypcr -S "${SESSION_CTX}" -l "sha256:${UNLOCK_PCRS}"
@@ -59,6 +81,7 @@ updateKeys() {
             info "Retrieved passphrase from TPM NVRAM"
         elif hw_decrypt_passphrase "$EFI_MOUNT_DIR" "session:${SESSION_CTX}" "${PASSPHRASE_FILE}"; then
             UNLOCK_PCRS_SUCCESS="${UNLOCK_PCRS}"
+            DISK_ENC_DIR="$(mktemp -d)"
             info "Decrypted passphrase stored on disk"
         fi
 
@@ -75,9 +98,10 @@ updateKeys() {
         fail "Failed to update policy sealing LUKS passphrase"
     fi
 
-    INACTIVE_SYSROOT=/mnt/sysroot/inactive
-    GRUB_BIN="$(find "${INACTIVE_SYSROOT}" -name bootx64.efi.secureboot -print -quit)"
-    KERNEL_BIN="$(find "${INACTIVE_SYSROOT}" -name bzImage -print -quit)"
+    # Look for kernel and GRUB in the current root
+    # We don't care if it's active or inactive
+    GRUB_BIN="$(find "/resin-boot" -name bootx64.efi.secureboot -print -quit)"
+    KERNEL_BIN="$(find "/boot" -name bzImage -print -quit)"
     if [ -z "${GRUB_BIN}" ] || [ -z "${KERNEL_BIN}" ]; then
         fail "Unable to add kernel and bootloader hashes to PCR7 digest"
     fi
@@ -98,10 +122,12 @@ updateKeys() {
     POLICY_EFIBIN="$(mktemp -t)"
     generate_pcr_digests \
         "${PCRS}" \
-        "${PCR_VAL_BIN}"
+        "${PCR_VAL_BIN}" \
+        "use_pcr2"
     generate_pcr_digests \
         "${PCRS}" \
         "${PCR_VAL_BIN_EFIBIN}" \
+        "use_pcr2" \
         "${EFI_BINARIES}"
 
     tpm2_createpolicy --policy-pcr \
@@ -137,9 +163,23 @@ updateKeys() {
             ;;
     esac
 
-    tpm_nvram_store_passphrase "${PASSPHRASE_FILE}" "${POLICY_PATH}"
+    tpm_nvram_store_passphrase "${PASSPHRASE_FILE}" "${POLICY_PATH}" "${DISK_ENC_DIR}"
     cp -rf "${POLICY_PATH}" "${EFI_MOUNT_DIR}"
     rm -rf "${CURRENT_POLICY_PATH}"
+
+    # If we are migrating from encrypted passphrase stored in the boot partition
+    # to passphrase stored in TPM NVRAM, the above has re-encrypted the passphrase
+    # and we now need to store it in the EFI partition, otherwise rollback won't work.
+    if [ -n "${DISK_ENC_DIR}" ]; then
+        tpm2_evictcontrol -c "${EFI_MOUNT_DIR}/balena-luks.ctx"
+
+        mv "${DISK_ENC_DIR}/persistent.ctx" "${EFI_MOUNT_DIR}/balena-luks.ctx"
+        mv "${DISK_ENC_DIR}/passphrase.enc" "${EFI_MOUNT_DIR}/balena-luks.enc"
+
+        rm -rf "${DISK_ENC_DIR}"
+
+        sync "${EFI_MOUNT_DIR}"
+    fi
 
     # update the second stage bootloader kernel binary, as the hash of the
     # original may not be present in the signature database
@@ -148,7 +188,9 @@ updateKeys() {
     # update GRUB if necessary
     rsync --checksum --inplace "${GRUB_BIN}" "${EFI_MOUNT_DIR}/EFI/BOOT/bootx64.efi"
     sync
+}
 
+updateUEFIKeys() {
     # This only updates db at this moment
     # PK and KEK need to be implemented
     DB_SYSFS_FILE="db-d719b2cb-3d3a-4596-a3bc-dad00e67656f"
@@ -168,12 +210,8 @@ updateKeys() {
     mkdir -p "${PENDING_DBX_DIR}"
     cp -a "${ACTIVE_DBX_FILE}" "${DEST_FILE}"
     sig-list-to-certs "${ACTIVE_ESL_FILE}" "${DEST_FILE}" >/dev/null
+    sync
 }
-
-# Only applicable in the new OS container
-if [ "${DURING_UPDATE}" != 1 ]; then
-    exit 0
-fi
 
 # Only applicable on UEFI systems
 if [ ! -d "/sys/firmware/efi" ]; then
@@ -198,9 +236,15 @@ if [ -n "${SETUPMODE_VAL}" ] && [ "${SETUPMODE_VAL}" -ne "0" ]; then
     exit 0
 fi
 
-# Not applicable if the signatures are in place
-if [ -f "/resin-boot/EFI/BOOT/grub.cfg.sig" ]; then
-    updateKeys
+# Only update if signatures are in place
+if [ -f "/resin-boot/EFI/BOOT/grub-luks.cfg.sig" ]; then
+    updatePCRPolicy
+
+    # Do not update UEFI keys during rollbacks
+    if [ "${DURING_UPDATE}" = 1 ] && ! isRollbackHealth; then
+        updateUEFIKeys
+    fi
+
     umountEfiVars
     exit $?
 fi

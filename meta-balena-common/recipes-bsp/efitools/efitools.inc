@@ -31,8 +31,9 @@ SRC_URI = "\
     file://Dynamically-load-openssl.cnf-for-openssl-1.0.x-1.1.x.patch \
     file://0001-console.c-Fix-compilation-against-latest-usr-include.patch \
     file://0001-console-Fix-a-typo-in-the-EFI-warning-list-in-gnu-ef.patch \
+    file://0001-hash-to-efi-sig-list.c-Allow-raw-hashes-as-arguments.patch \
 "
-SRCREV = "392836a46ce3c92b55dc88a1aebbcfdfc5dcddce"
+SRCREV = "b988d20a7f8373cf19c30d5c9c459f3e87f28da2"
 
 PARALLEL_MAKE = ""
 
@@ -50,7 +51,7 @@ EXTRA_OEMAKE = "\
 "
 EXTRA_OEMAKE:append:x86 = " ARCH=ia32"
 EXTRA_OEMAKE:append:x86-64 = " ARCH=x86_64"
-EXTRA_OEMAKE:append:arm = "ARCH=arm"
+EXTRA_OEMAKE:append:arm = " ARCH=arm"
 EXTRA_OEMAKE:append:aarch64 = " ARCH=aarch64"
 
 EFI_BOOT_PATH = "/boot/efi/EFI/BOOT"
